@@ -1,139 +1,184 @@
-# FoodSAM: Any Food Segmentation
+# School Canteen Food-Waste Prototype
 
+An MVP system for measuring plate leftovers by food category using a regular USB camera and FoodSAM segmentation.
 
-This is the official PyTorch implementation of our paper:
-FoodSAM: Any Food Segmentation.
+## What this project does
 
-[![PWC](https://img.shields.io/endpoint.svg?url=https://paperswithcode.com/badge/foodsam-any-food-segmentation/semantic-segmentation-on-foodseg103)](https://paperswithcode.com/sota/semantic-segmentation-on-foodseg103?p=foodsam-any-food-segmentation)
+After a student places a plate under the camera:
+1. The system detects a plate circle in the frame.
+2. Capture is allowed only when the operator arms it (button/key-based arming).
+3. The captured plate image is segmented with FoodSAM.
+4. Waste percentages are computed per allowed menu category.
+5. Results and artifacts are stored in SQLite for analytics and future portion personalization.
 
----
+## Why this approach
 
-Segment anything Model(SAM) demonstrates significant performance on various segmentation benchmarks, showcasing its impressing zero-shot transfer capabilities on 23 diverse segmentation datasets. However, SAM lacks the class-specific information for each mask. To address the above limitation and explore the zero-shot capability of the SAM for food image segmentation, we propose a novel framework, called FoodSAM. This innovative approach integrates the coarse semantic mask with SAM-generated masks to enhance semantic
-segmentation quality. Besides, it can perform instance segmentation on food images. Furthermore, FoodSAM extends its zero-shot capability to encompass panoptic segmentation by incorporating an object detector, which renders FoodSAM to effectively capture non-food object information. Remarkably, this pioneering framework stands as the first-ever work to achieve instance, panoptic, and promptable segmentation on food images. 
+- No depth camera required.
+- Uses existing FoodSAM checkpoints and category mapping.
+- Supports daily menu constraints to improve practical accuracy.
+- Stores structured records for future recommendation logic.
 
-[[`Arxiv`](https://arxiv.org/abs/2308.05938)] 
-[[`Project`]](https://starhiking.github.io/FoodSAM_Page/)
-[[`IEEE TMM`]](https://ieeexplore.ieee.org/document/10306316)
+## Main features
 
-![FoodSAM architecture](assets/foodsam.jpg)
+- Automatic plate detection (Hough circle based).
+- One-shot button-armed auto-capture.
+- Daily menu category filtering from JSON.
+- FoodSAM semantic + enhanced mask analysis.
+- SQLite logging of each capture and per-category metrics.
+- Debug logging for denominator/ROI validation.
 
-FoodSAM contains three basic models: SAM, semantic segmenter, and object detector. SAM generates many class-agnostic binary masks, the semantic segmenter provides food category labels via mask-category match, and the object detector provides the non-food class for background masks. It then enhances the semantic mask via merge strategy and produces instance and panoptic results. Moreover, a seamless prompt-prior selection is integrated into the object detector to achieve promptable segmentation.
+## Repository components
 
-  <img src="assets/model.jpg" />
+- `canteen_auto_capture.py`: capture loop, FoodSAM call, waste calculation, SQLite persistence.
+- `visualize_segmentation.py`: visualization and category reporting utilities.
+- `configs/daily_menu.json`: daily menu configuration.
+- `FoodSAM/semantic.py`: FoodSAM semantic pipeline entrypoint.
+- `FoodSAM/FoodSAM_tools/category_id_files/foodseg103_category_id.txt`: valid class list.
 
-## Installation
-Please follow our [installation.md](installation.md) to install.
+## Requirements
 
+- Python environment with FoodSAM dependencies.
+- OpenCV-compatible USB camera.
+- FoodSAM checkpoints in `ckpts/`.
 
-## <a name="GettingStarted"></a>Getting Started
+Minimum critical packages (in addition to project requirements):
+- `torch`
+- `mmcv-full`
+- `segment-anything`
+- `opencv-python`
 
-### Demo shell
-You can run the model for semantic and panoptic segmentation in a few command lines.
+See `installation.md` for the original FoodSAM setup guide.
 
-#### semantic segmentation:
+## Setup
 
-    # semantic segmentation for one img
-    python FoodSAM/semantic.py --img_path <path/to/img> --output <path/to/output> 
+### 1) Create and activate environment
 
-    # semantic segmentation for one folder
-    python FoodSAM/semantic.py --data_root <path/to/folder> --output <path/to/output>
+Use your preferred tool (`venv` or `conda`) and install dependencies.
 
-#### panoptic segmentation:
+### 2) Install dependencies
 
-    # panoptic segmentation for one img
-    python FoodSAM/panoptic.py --img_path <path/to/img> --output <path/to/output>
+Install FoodSAM dependencies first (PyTorch, MMCV, SAM), then:
 
-    # panoptic segmentation for one folder
-    python FoodSAM/panoptic.py --data_root <path/to/folder> --output <path/to/output>
-
-
-
-### Evaluation shell
-Furthermore, by setting `args.eval` to true, the model can output the semantic masks and evaluate the metrics. 
-Here are examples of semantic segmentation and panoptic segmentation on the FoodSeg103 dataset:
+```bash
+pip install -r requirement.txt
 ```
-python FoodSAM/semantic.py --data_root dataset/FoodSeg103/Images --output Output/Semantic_Results --eval 
+
+If needed:
+
+```bash
+pip install segment-anything
 ```
+
+### 3) Download checkpoints
+
+Place required checkpoints under `ckpts/`:
+- `sam_vit_h_4b8939.pth`
+- `SETR_MLA/iter_80000.pth`
+- `Unified_learned_OCIM_RS200_6x+2x.pth` (for panoptic workflows)
+
+## Daily menu configuration
+
+Edit `configs/daily_menu.json`:
+
+```json
+{
+  "default": ["soup", "potato", "pork", "tomato", "rice"],
+  "by_date": {
+    "2026-06-15": ["pasta", "sausage", "tomato"]
+  }
+}
 ```
-python FoodSAM/panoptic.py --data_root dataset/FoodSeg103/Images --output Output/Panoptic_Results
+
+Menu items may be class names or numeric IDs from:
+`FoodSAM/FoodSAM_tools/category_id_files/foodseg103_category_id.txt`
+
+## Run the prototype
+
+### Interactive mode (recommended)
+
+```bash
+python canteen_auto_capture.py --show-preview --arm-key a --debug
 ```
 
-## Quantitative results
+Behavior:
+- Press `A` to arm one capture.
+- Place plate and wait for stable circle detection.
+- After capture, the system disarms automatically.
+- Press `Q` to quit.
 
-### FoodSeg103
-| Method | mIou | aAcc | mAcc 
-| :-: | :- | -: | :-: |  
-|[SETR_MLA(baseline)](https://github.com/LARC-CMU-SMU/FoodSeg103-Benchmark-v1) | 45.10 | 83.53 | 57.44
-FoodSAM | 46.42 | 84.10 |  58.27
+### Headless mode
 
-### UECFOODPIXCOMPLETE
+```bash
+python canteen_auto_capture.py --start-armed
+```
 
-| Method | mIou | aAcc | mAcc 
-| :-: | :- | -: | :-: |  
-|[deeplabV3+ (baseline)](https://github.com/HitBadTrap/Foodseg-uecfoodpix)| 65.61 |88.20| 77.56
-FoodSAM | 66.14 |88.47 |78.01
+## Key CLI options
 
-## Qualitative results
+- `--camera-id`: camera index (default `0`)
+- `--menu-config`: menu JSON path
+- `--stability-frames`: stable frames required before capture
+- `--min-plate-radius`: minimum detected circle radius
+- `--arm-key`: arming key in preview mode
+- `--start-armed`: arm at startup
+- `--debug`: print debug logs
+- `--debug-every-n-frames`: periodic debug interval
 
-### cross domain results
+## Outputs
 
- <img src="assets/crossdomain.png">
+### Artifacts
 
-### semantic segmentation results 
+- `output/canteen_captures/*_full.jpg`: full frame
+- `output/canteen_captures/*_crop.jpg`: cropped plate ROI
+- `output/canteen_runs/<capture_id>/`: FoodSAM outputs (`pred_mask.png`, `enhance_mask.png`, etc.)
 
- <img src="assets/semantic.jpg">
- 
----
+### Database
 
- <img src="assets/semantic_compare.jpg">
- 
-### instance segmentation results
-<img src="assets/instance_compare.jpg">
+SQLite database path:
+- `output/canteen/canteen_waste.db`
 
-### panoptic segmentation results
-<img src="assets/panoptic_compare.jpg">
+Tables:
+- `captures`: one row per capture
+- `capture_items`: per-category waste rows for each capture
 
-### promptable segmentation results
-<img src="assets/prompt_vis.jpg">
+## Percentage definition
+
+Per-category percentage is calculated relative to ROI pixels (plate area mask), not the full frame:
+
+- `pct = category_pixels / roi_pixels * 100`
+
+Debug logs print:
+- `frame_pixels`
+- `roi_pixels`
+- `roi_pct_of_frame`
+- `total_food_pct`
+- `unexpected_pct`
+
+## Known limitations
+
+- Area-based proxy only (no true mass/volume without depth or scales).
+- Circle detection may fail with unusual plate shapes or occlusion.
+- Food class confusion can occur for visually similar dishes.
+
+## Recommended next improvements
+
+1. Add confidence-based reject/review workflow.
+2. Add dashboard for daily and weekly waste trends.
+3. Add category-level personalization policy engine.
+4. Containerize inference service for cross-machine deployment.
 
 ## Acknowledgements
 
-A large part of the code is borrowed from the following wonderful works:
+This project builds on FoodSAM: Any Food Segmentation by Lan et al.
 
-1. [Segmentation Anything](https://github.com/facebookresearch/segment-anything)
+- Upstream repository: https://github.com/jamesjg/FoodSAM
+- Paper: https://arxiv.org/abs/2308.05938
 
-2. [UniDet](https://github.com/xingyizhou/UniDet)
-
-3. [FoodSeg103](https://github.com/LARC-CMU-SMU/FoodSeg103-Benchmark-v1)
-
-4. [mmsegmentation](https://github.com/open-mmlab/mmsegmentation)
+This repository includes vendored and project-integrated FoodSAM components used for semantic food segmentation within the canteen waste workflow. Additional bundled upstream components are documented in `THIRD_PARTY_NOTICES.md`.
 
 ## License
 
-The model is licensed under the [Apache 2.0 license](LICENSE).
+This repository includes third-party components from the public FoodSAM repository and related upstream projects.
 
-## Citation
-If you want to cite our work, please use this:
-
-```
-@ARTICLE{10306316,
-  author={Lan, Xing and Lyu, Jiayi and Jiang, Hanyu and Dong, Kun and Niu, Zehai and Zhang, Yi and Xue, Jian},
-  journal={IEEE Transactions on Multimedia}, 
-  title={FoodSAM: Any Food Segmentation}, 
-  year={2023},
-  volume={},
-  number={},
-  pages={1-14},
-  doi={10.1109/TMM.2023.3330047}
-}
-
-@misc{lan2023foodsam,
-      title={FoodSAM: Any Food Segmentation}, 
-      author={Xing Lan and Jiayi Lyu and Hanyu Jiang and Kun Dong and Zehai Niu and Yi Zhang and Jian Xue},
-      year={2023},
-      eprint={2308.05938},
-      archivePrefix={arXiv},
-      primaryClass={cs.CV}
-}
-
-```
+- Upstream FoodSAM is licensed under Apache 2.0.
+- This repository's local modifications and integration code are distributed under the license in `LICENSE`.
+- See `THIRD_PARTY_NOTICES.md` for attribution and bundled third-party component details.

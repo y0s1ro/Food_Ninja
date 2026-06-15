@@ -1,0 +1,20 @@
+{
+  "default": [
+    "soup",
+    "potato",
+    "pork",
+    "tomato",
+    "rice"
+  ],
+  "by_date": {
+    "2026-06-14": [
+      "asparagus",
+      "rice",
+      "chicken duck"
+    ],
+    "2026-06-15": [
+      "pasta",
+      "chicken duck"
+    ]
+  }
+}

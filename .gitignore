@@ -3,3 +3,4 @@ Output/
 ckpts/SETR_MLA/*
 !ckpts/SETR_MLA/.gitkeep
 ckpts/*
+test_img/img_dir/test/
